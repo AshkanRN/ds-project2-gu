@@ -801,8 +801,10 @@ void pharmacyMenu(drugs* &drug, category* &ctg, trie* &t) {
 
                     if (result != nullptr)
                         displayNode(result);
-                    else
-                        cout<<"\nNOT FOUND!!!\n";
+                    else {
+                        cout << "\n\"No exact result found. most relevant matches:\n";
+                        autoComplete(t, name);
+                    }
 
                     break;
                 }
