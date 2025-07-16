@@ -1,7 +1,22 @@
-// FINAL
 #include <iostream>
 #include <limits>
 using namespace std;
+
+
+bool isValidInt(const string &str){
+    try {
+        stoi(str);
+        return true;
+    }
+    catch (const invalid_argument&) {
+        cout << "\nInvalid input: '" << str << "' is not a number.\n";
+    }
+    catch (const out_of_range&) {
+        cout << "\nInput out of range: '" << str << "' is too large or too small.\n";
+    }
+    return false;
+}
+
 
 string toLowerCase(string &str) {
     for (int i = 0; i < str.length(); i++)
@@ -33,7 +48,7 @@ class category {
 public:
     drugs* node;
     string categoryName;
-    int numberOfDrugs;
+
 
     category* left;
     category* right;
@@ -44,10 +59,23 @@ public:
         left = right = nullptr;
     }
     ~category() = default;
-
 };
 
-
+class trie {
+    public:
+        trie * child[27];
+        bool isEndOfWord;
+        trie() {
+            isEndOfWord = false;
+            for (int i = 0; i < 27; i++)
+                child[i] = nullptr;
+        }
+        ~trie() {
+            for (int i = 0; i < 27; i++)
+                if (child[i] != nullptr)
+                    delete child[i];
+        }
+};
 
 drugs* searchName(drugs* root, string drugName);
 
@@ -59,16 +87,22 @@ void displayNode(const drugs* root) {
         <<" - Inventory: "<<root->inventory<<endl;
 }
 
+
 drugs* createNode(drugs* root) {
 
-    drugs* newNode = new drugs;
+    auto* newNode = new drugs;
     newNode->left = newNode->right = nullptr;
 
     cin.ignore(numeric_limits<streamsize>::max(),'\n');
-    cout<<"ID:";
-    getline(cin,newNode->ID);
 
-    cout<<"Name:";
+    cout<<"ID: ";
+    getline(cin,newNode->ID);
+    if (!isValidInt(newNode->ID)) {
+        delete newNode;
+        return nullptr;
+    }
+
+    cout<<"Name: ";
     getline(cin,newNode->name);
     newNode->name = toLowerCase(newNode->name);
 
@@ -77,16 +111,26 @@ drugs* createNode(drugs* root) {
     if ( existingDrug != nullptr) {
         cout<<"\nThis drug Is already Added !!!\n";
         displayNode(existingDrug);
+        delete newNode;
         return nullptr;
     }
 
-    cout<<"Price:";
+    cout<<"Price: ";
     getline(cin,newNode->price);
+    if (!isValidInt(newNode->price)) {
+        delete newNode;
+        return nullptr;
+    }
 
-    cout<<"Inventory:";
+
+    cout<<"Inventory: ";
     getline(cin,newNode->inventory);
+    if (!isValidInt(newNode->inventory)){
+        delete newNode;
+        return nullptr;
+    }
 
-    cout<<"Category:";
+    cout<<"Category: ";
     getline(cin,newNode->category);
     newNode->category = toLowerCase(newNode->category);
 
@@ -141,7 +185,7 @@ void minimumPrice(drugs* root) {
     }
 
     if (root->price < cheapest->price)
-        mostExpensive = root;
+        cheapest = root;
 
     minimumPrice(root->left);
     minimumPrice(root->right);
@@ -191,7 +235,7 @@ void insertDrug (drugs* &subtree ,drugs* newNode, bool updateMinMax) {
 }
 
 
-category* categoryExists(category* root , string ctgName) {
+category* findCategory(category* root , string ctgName) {
     if (root == nullptr) {
         return nullptr;
     }
@@ -201,10 +245,10 @@ category* categoryExists(category* root , string ctgName) {
     }
 
     if (ctgName < root->categoryName) {
-        return categoryExists(root->left, ctgName);
+        return findCategory(root->left, ctgName);
     }
 
-    return categoryExists(root->right, ctgName);
+    return findCategory(root->right, ctgName);
 }
 
 
@@ -253,6 +297,7 @@ void deleteNode(drugs* &root, drugs* target, bool shouldUpdate) {
     if (root == nullptr) return;
 
     bool isMaxPrice = false, isMinPrice = false;
+
     if (shouldUpdate) {
         isMaxPrice = (target == mostExpensive);
         isMinPrice = (target == cheapest);
@@ -413,7 +458,7 @@ void deleteNodeCtg(category* &root, category* target) {
 
 
 void deleteAll(drugs* &drugRoot, category* &ctgRoot, string ID) {
-
+    // 1. Find target drug
     drugs* target = searchID(drugRoot, ID);
 
     if (target == nullptr) {
@@ -421,22 +466,25 @@ void deleteAll(drugs* &drugRoot, category* &ctgRoot, string ID) {
         return;
     }
 
+    // 2. Store category name before deletion
     string targetCategory = target->category;
 
+    // 3. Delete from main drug tree
     deleteNode(drugRoot, target, true);
 
-    category* categoryNode = categoryExists(ctgRoot, targetCategory);
+    // 4. Find category node
+    category* categoryNode = findCategory(ctgRoot, targetCategory);
 
     if (categoryNode == nullptr)
         return;
 
-
+    // 5. Delete drug from category's internal tree
     drugs* categoryDrug = searchID(categoryNode->node, ID);
 
     if (categoryDrug != nullptr) {
 
         deleteNode(categoryNode->node, categoryDrug, false);
-
+        // 6. If category's drug tree becomes empty, delete category node
         if (categoryNode->node == nullptr)
             deleteNodeCtg(ctgRoot, categoryNode);
 
@@ -515,35 +563,42 @@ void checkInventory(const drugs* root,int &counter) {
     checkInventory(root->right,counter);
 }
 
+
+bool existingInRange = false;
 void displayWithPrice(const drugs* root,string minRange,string maxRange) {
     if (root == nullptr)
         return;
 
     displayWithPrice(root->left,minRange,maxRange);
 
-    if (stoi(root->price) >= stoi(minRange) && stoi(root->price) <= stoi(maxRange))
+    if (stoi(root->price) >= stoi(minRange) && stoi(root->price) <= stoi(maxRange)) {
+        existingInRange = true;
         displayNode(root);
+    }
 
     displayWithPrice(root->right,minRange,maxRange);
 }
 
 
+void deleteDrugTree(drugs* root) {
+    if (root == nullptr) return;
+    deleteDrugTree(root->left);
+    deleteDrugTree(root->right);
+    delete root;
+}
 
-class trie {
-public:
-    trie * child[27];
-    bool isEndOfWord;
-    trie() {
-        isEndOfWord = false;
-        for (int i = 0; i < 27; i++)
-            child[i] = nullptr;
-    }
-    ~trie() {
-        for (int i = 0; i < 27; i++)
-            if (child[i] != nullptr)
-                delete child[i];
-    }
-};
+void deleteCategoryTree(category* root) {
+    if (root == nullptr) return;
+    deleteCategoryTree(root->left);
+    deleteCategoryTree(root->right);
+    deleteDrugTree(root->node);  // delete drugs in this category
+    delete root;
+}
+
+
+
+
+/*  TRIE FUNCTIONS   */
 
 int getCharIndex(char c) {
     return c == ' ' ? 26 : c - 'a';
@@ -621,10 +676,15 @@ int autoComplete(trie* root , string str) {
     return 1;
 }
 
+
+
+
+
+
 void pharmacyMenu(drugs* &drug, category* &ctg, trie* &t) {
     while (true) {
         char command = '\0';
-        cout<<"[0]: Exit\n"
+        cout<<"\n[0]: Exit\n"
             <<"[1]: Insert\n"
             <<"[2]: Delete\n"
             <<"[3]: Search\n"
@@ -633,49 +693,57 @@ void pharmacyMenu(drugs* &drug, category* &ctg, trie* &t) {
             <<"[6]: Display the Cheapest And Most Expensive\n"
             <<"[7]: Height\n"
             <<"[8]: Auto Complete\n"
-            <<"[9]: Display Category\n";
+            <<"[9]: Display Category\n"
+            <<"--> " << flush;
         cin>>command;
-        if (command == '0')
+        if (command == '0') {
+            deleteDrugTree(drug);
+            deleteCategoryTree(ctg);
+            delete t;
+            cout<<"done";
             break;
+
+        }
+
         if (command == '1') {
 
-            if (command == '1') {
+            drugs* newNode = createNode(drug);
 
-                drugs* newNode = createNode(drug);
+            if (newNode == nullptr)
+                continue;
 
-                if (newNode == nullptr)
-                    continue;
+            insertDrug(drug, newNode, true);
 
-                insertDrug(drug, newNode, true);
+            insertWord(t,newNode->name);
 
-                insertWord(t,newNode->name);
+            category* check = findCategory(ctg, newNode->category);
 
-                category* check = categoryExists(ctg, newNode->category);
+            if (check == nullptr) {
 
-                if (check == nullptr) {
+                auto* newCategory = new category(newNode->category);
 
-                    category* newCategory = new category(newNode->category);
+                auto* drugCopy = new drugs();
+                *drugCopy = *newNode;
+                drugCopy->left = drugCopy->right = nullptr;
 
-                    drugs* drugCopy = new drugs();
-                    *drugCopy = *newNode;
-                    drugCopy->left = drugCopy->right = nullptr;
+                newCategory->node = drugCopy;
+                insertCategory(ctg, newCategory);
+                categoryCount++;
+            }
 
-                    newCategory->node = drugCopy;
-                    insertCategory(ctg, newCategory);
-                    categoryCount++;
-                }
-                if (check != nullptr) {
+            if (check != nullptr) {
 
-                    drugs* drugCopy = new drugs();
-                    *drugCopy = *newNode;
-                    drugCopy->left = drugCopy->right = nullptr;
+                auto* drugCopy = new drugs();
+                *drugCopy = *newNode;
+                drugCopy->left = drugCopy->right = nullptr;
 
-                    insertDrug(check->node, drugCopy, false);
-                }
+                insertDrug(check->node, drugCopy, false);
             }
         }
 
+
         else if (command == '2') {
+
             if (drug == nullptr) {
                 cout<<"\nNo Drug Available !!!\n";
                 continue;
@@ -687,11 +755,15 @@ void pharmacyMenu(drugs* &drug, category* &ctg, trie* &t) {
 
             deleteAll(drug,ctg,ID);
         }
+
+
         else if (command == '3') {
+
             if (drug == nullptr) {
                 cout<<"\nNo Drug Available !!!\n";
                 continue;
             }
+
             while (true){
                 char cmd = '\0';
                 cout<<"[0]: Return\n"
@@ -699,6 +771,7 @@ void pharmacyMenu(drugs* &drug, category* &ctg, trie* &t) {
                     <<"[2]: Search By Name\n"
                     <<"[3]: Search By Price Range\n";
                 cin>>cmd;
+
                 if (cmd == '0')
                     break;
 
@@ -733,7 +806,9 @@ void pharmacyMenu(drugs* &drug, category* &ctg, trie* &t) {
 
                     break;
                 }
+
                 if (cmd == '3') {
+                    existingInRange = false;
                     string min , max;
 
                     cout<<"\nminimum Price:";
@@ -744,14 +819,19 @@ void pharmacyMenu(drugs* &drug, category* &ctg, trie* &t) {
 
                     displayWithPrice(drug,min,max);
 
+                    if (!existingInRange)
+                        cout<<"\nNo drugs found in the price range "<< min <<" to " << max<<endl;
+
                     break;
                 }
+
                 else {
                     cout<<"\nInvalid !\n";
                     continue;
                 }
             }
         }
+
         else if (command == '4') {
             if (drug == nullptr) {
                 cout<<"\nNo Drug Available !!!\n";
@@ -759,6 +839,7 @@ void pharmacyMenu(drugs* &drug, category* &ctg, trie* &t) {
             }
             inOrder(drug);
         }
+
         else if (command == '5') {
             if (drug == nullptr) {
                 cout<<"\nNo Drug Available !!!\n";
@@ -769,17 +850,26 @@ void pharmacyMenu(drugs* &drug, category* &ctg, trie* &t) {
                 <<"\nTotal Number Of Drugs: "<<totalInventory
                 <<"\nNumber Of Categories: "<<categoryCount<<endl;
         }
+
         else if (command == '6') {
             if (drug == nullptr) {
                 cout<<"\nNo Drug Available !!!\n";
                 continue;
             }
-            cout<<"\nThe Cheapest Drug:  ";
+
+            if (cheapest == mostExpensive){
+                cout<<"\nThere is only One Drug:\n";
+                displayNode(cheapest);
+                continue;
+            }
+
+            cout<<"\nThe Cheapest Drug:\n";
             displayNode(cheapest);
 
-            cout<<"\nThe Most Expensive Drug:  ";
+            cout<<"\nThe Most Expensive Drug:\n";
             displayNode(mostExpensive);
         }
+
         else if (command == '7') {
             if (drug == nullptr) {
                 cout<<"\nNo Drug Available !!!\n";
@@ -797,6 +887,7 @@ void pharmacyMenu(drugs* &drug, category* &ctg, trie* &t) {
             else
                 cout<<"\nNot Balance\n";
         }
+
         else if (command == '8') {
             if (drug == nullptr) {
                 cout<<"\nNo Drug Available !!!\n";
@@ -808,6 +899,7 @@ void pharmacyMenu(drugs* &drug, category* &ctg, trie* &t) {
 
             autoComplete(t,str);
         }
+
         else if (command == '9') {
             if (drug == nullptr && ctg == nullptr) {
                 cout<<"\nNo Drug Available !!!\n";
@@ -820,13 +912,15 @@ void pharmacyMenu(drugs* &drug, category* &ctg, trie* &t) {
         }
     }
 }
+
+
 int main(){
 
     drugs* drug = nullptr;
     category* ctg = nullptr;
     trie* t = new trie();
 
-    pharmecyMenu(drug,ctg,t);
+    pharmacyMenu(drug, ctg, t);
 
 
     return 0;
